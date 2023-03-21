@@ -6,25 +6,6 @@
     "version": "1"
   },
   "paths": {
-    "/hello": {
-      "post": {
-        "summary": "hello",
-        "description": "",
-        "operationId": "hello.post.hello",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "200 response"
-          }
-        }
-      }
-    },
     "/products/{id}": {
       "get": {
         "summary": "getProductById",

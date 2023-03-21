@@ -1,45 +1,74 @@
-import { S3 } from 'aws-sdk';
+import 'source-map-support/register';
+import { formatJSONResponse } from '../../libs/api-gateway';
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { middyfy } from '@libs/lambda';
+import { BUCKET_NAME, REGION, UPLOAD_PREFIX, PARSE_PREFIX } from '../../utils/constants';
+import { S3, SQS } from 'aws-sdk';
 const csv = require('csv-parser');
-import { S3Event } from "aws-lambda";
-const s3 = new S3({ region: 'us-east-1' });
 
-const fileParser = async (event: S3Event) => {
-  const { Records } = event;
 
-  for (const record of Records) {
-    const [, file] = record.s3.object.key.split('/');
+const fileParser = async (event): Promise<APIGatewayProxyResult> => {
 
-    const streamS3Response = s3.getObject({
-      Bucket: record.s3.bucket.name,
-      Key: record.s3.object.key
-    }).createReadStream();
+  try {
+    const { Records } = event;
+    console.log('[EVENT]', event);
 
-    const data = streamS3Response.pipe(csv({ separator: ';' }));
-    const chunks = [];
+    const s3Bucket = new S3({ region: REGION });
+    const sqs = new SQS({ region: REGION });
 
-    for await (const chunk of data) {
-      chunks.push(chunk);
-      console.log('Data Read: ', JSON.stringify(chunk));
-    }
+    Records.forEach(record => {
+      console.log('[RECORD]', JSON.parse(JSON.stringify(record)));
 
-    await s3.putObject({
-      Bucket: record.s3.bucket.name,
-      Body: JSON.stringify(chunks),
-      Key: `parsed/${file.replace('csv', 'json')}`,
-      ContentType: 'application/json'
-    }).promise().catch(error => {
-      console.log(500, error);
+      const { key } = record.s3.object;
+
+      const fileName = decodeURIComponent(key);
+
+      const params = {
+        Bucket: BUCKET_NAME,
+        Key: fileName
+      };
+
+      const s3Object = s3Bucket.getObject(params);
+
+      const s3ReadableStream = s3Object.createReadStream();
+
+      s3ReadableStream.pipe(csv())
+        .on('data', async (chunk) => {
+
+          const chunkStringified = JSON.stringify(chunk);
+
+          console.log(`Recieved part of data ${chunkStringified}`);
+
+          const message = {
+            QueueUrl: process.env.SQS_URL,
+            MessageBody: chunkStringified
+          };
+
+          await sqs.sendMessage(message).promise();
+        })
+        .on('error', (e) => {
+          throw new Error(`Error occured: ${e}`);
+        })
+        .on('end', async () => {
+          const sourceName = `${BUCKET_NAME}/${fileName}`;
+          const destName = fileName.replace(UPLOAD_PREFIX, PARSE_PREFIX);
+
+          const copyParams = {
+            Bucket: BUCKET_NAME,
+            CopySource: sourceName,
+            Key: destName
+          };
+
+          await s3Bucket.copyObject(copyParams).promise();
+          await s3Bucket.deleteObject(params).promise();
+        });
     });
 
-    await s3.deleteObject({
-      Bucket: record.s3.bucket.name,
-      Key: record.s3.object.key
-    }).promise().catch(error => {
-      console.log(500, error);
-    });
-
-    console.log(200, event);
+    return formatJSONResponse({ message: 'Successfully parsed' });
+  } catch (e) {
+    const message = `Something went wrong on server side: ${e}`;
+    return formatJSONResponse({ message });
   }
 };
 
-export const main = fileParser;
+export const main = middyfy(fileParser);

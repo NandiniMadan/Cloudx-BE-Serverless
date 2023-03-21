@@ -2,16 +2,17 @@ import type { ValidatedEventAPIGatewayProxyEvent } from '@libs/api-gateway';
 import { formatJSONResponse } from '../../libs/api-gateway';
 import { middyfy } from '../../libs/lambda';
 import { S3 } from 'aws-sdk';
+import { BUCKET_NAME, REGION, UPLOAD_PREFIX } from '../../utils/constants';
 
 import schema from './schema';
 
-const s3 = new S3({ region: 'us-east-1' });
+const s3 = new S3({ region: REGION });
 
 export const productsFile: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async (event) => {
   const params = {
-    Bucket: 'magnum-imports',
-    Key: `uploaded/${event.queryStringParameters.name}`,
-    Expires: 6000,
+    Bucket: BUCKET_NAME,
+    Key: `${UPLOAD_PREFIX}/${event.queryStringParameters.name}`,
+    Expires: 60,
     ContentType: 'text/csv'
   };
 

@@ -5,8 +5,9 @@ import fileParser from '@functions/fileParser';
 
 const serverlessConfiguration: AWS = {
   service: 'import-service',
+  useDotenv: true,
   frameworkVersion: '3',
-  plugins: ['serverless-esbuild'],
+  plugins: ['serverless-esbuild', 'serverless-auto-swagger'],
   provider: {
     name: 'aws',
     runtime: 'nodejs16.x',
@@ -19,7 +20,11 @@ const serverlessConfiguration: AWS = {
     environment: {
       AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       NODE_OPTIONS: '--enable-source-maps --stack-trace-limit=1000',
+      SQS_URL: {
+        Ref: 'SQSQueue'
+      }
     },
+    lambdaHashingVersion: '20201221',
     iam: {
       role: {
         statements: [
@@ -34,6 +39,13 @@ const serverlessConfiguration: AWS = {
             Resource: 'arn:aws:s3:::magnum-imports/*'
           },
           {
+            Effect: 'Allow',
+            Action: [
+              "lambda:InvokeFunction"
+            ],
+            Resource: "*"
+          },
+          {
             Effect: "Allow",
             Action: [
               "logs:PutLogEvents",
@@ -42,6 +54,13 @@ const serverlessConfiguration: AWS = {
             ],
             Resource: "arn:aws:s3:::magnum-imports/*"
           },
+          {
+            Effect: 'Allow',
+            Action: 'sqs:*',
+            Resource: {
+              'Fn::GetAtt': ['SQSQueue', 'Arn']
+            }
+          }
         ]
       }
     }
@@ -62,8 +81,24 @@ const serverlessConfiguration: AWS = {
             ]
           }
         }
+      },
+      SQSQueue: {
+        Type: 'AWS::SQS::Queue',
+        Properties: {
+          QueueName: 'catalog-items-sqs-queue'
+        }
       }
-    }
+    },
+    Outputs: {
+      SQSArn: {
+        Value: {
+          'Fn::GetAtt': ['SQSQueue', 'Arn']
+        },
+        Export: {
+          Name: 'SQSArn'
+        }
+      }
+    },
   },
   // import the function via paths
   functions: { productsFile, fileParser },
@@ -78,6 +113,11 @@ const serverlessConfiguration: AWS = {
       define: { 'require.resolve': undefined },
       platform: 'node',
       concurrency: 10,
+    },
+    autoswagger: {
+      title: 'import-service',
+      useStage: true,
+      basePath: '/dev',
     },
   },
 };
