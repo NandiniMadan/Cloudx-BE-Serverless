@@ -57,10 +57,8 @@ const serverlessConfiguration: AWS = {
           {
             Effect: 'Allow',
             Action: 'sqs:*',
-            Resource: {
-              'Fn::GetAtt': ['SQSQueue', 'Arn']
-            }
-          }
+            Resource: `arn:aws:sqs:us-east-1:484915649883:catalogItemsQueue`,
+          },
         ]
       }
     }

@@ -12,7 +12,7 @@ export const productsFile: ValidatedEventAPIGatewayProxyEvent<typeof schema> = a
   const params = {
     Bucket: BUCKET_NAME,
     Key: `${UPLOAD_PREFIX}/${event.queryStringParameters.name}`,
-    Expires: 60,
+    Expires: 600,
     ContentType: 'text/csv'
   };
 

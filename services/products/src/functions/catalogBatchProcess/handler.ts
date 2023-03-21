@@ -47,7 +47,7 @@ const catalogBatchProcessHandler = async (
                 }).promise();
 
                 await SNSClient.publish({
-                    Subject: 'New product Created',
+                    Subject: 'New Batch Catalog Created',
                     Message: JSON.stringify(product),
                     TopicArn: process.env.SNS_TOPIC_CREATE_PRODUCT,
                 }).promise();

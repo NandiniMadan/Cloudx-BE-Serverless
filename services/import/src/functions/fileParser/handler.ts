@@ -1,74 +1,89 @@
-import 'source-map-support/register';
-import { formatJSONResponse } from '../../libs/api-gateway';
-import { APIGatewayProxyResult } from 'aws-lambda';
+// import { formatJSONResponse } from '@libs/api-gateway';
 import { middyfy } from '@libs/lambda';
-import { BUCKET_NAME, REGION, UPLOAD_PREFIX, PARSE_PREFIX } from '../../utils/constants';
+import { Handler } from 'aws-lambda';
 import { S3, SQS } from 'aws-sdk';
 const csv = require('csv-parser');
+import { SendMessageRequest } from "aws-sdk/clients/sqs";
+import { BUCKET_NAME, REGION, PARSE_PREFIX, UPLOAD_PREFIX } from 'src/utils/constants';
 
+const {
+  SQS_URL
+} = process.env;
 
-const fileParser = async (event): Promise<APIGatewayProxyResult> => {
+const s3 = new S3({ region: REGION });
+const sqs = new SQS();
 
-  try {
-    const { Records } = event;
-    console.log('[EVENT]', event);
+const fileParser: Handler = async (event) => {
+  console.log(' Lambda FileParser event: ' + JSON.stringify(event));
 
-    const s3Bucket = new S3({ region: REGION });
-    const sqs = new SQS({ region: REGION });
-
-    Records.forEach(record => {
-      console.log('[RECORD]', JSON.parse(JSON.stringify(record)));
-
-      const { key } = record.s3.object;
-
-      const fileName = decodeURIComponent(key);
-
-      const params = {
+  const promises = event.Records.map(record => {
+    return new Promise<void>((resolve, reject) => {
+      const sourcePath = record?.s3?.object?.key;
+      const destinationPath = sourcePath.replace(UPLOAD_PREFIX, PARSE_PREFIX);
+      const fileName = sourcePath.replace(UPLOAD_PREFIX, '');
+      const paramsGetObject = {
         Bucket: BUCKET_NAME,
-        Key: fileName
+        Key: sourcePath
       };
+      const paramsCopyObject = {
+        Bucket: BUCKET_NAME,
+        CopySource: `${BUCKET_NAME}/${sourcePath}`,
+        Key: destinationPath
+      };
+      const paramsDeleteObject = {
+        Bucket: BUCKET_NAME,
+        Key: sourcePath
+      }
 
-      const s3Object = s3Bucket.getObject(params);
+      const res = [];
+      const stream = s3.getObject(paramsGetObject).createReadStream();
+      stream
+        .pipe(csv())
+        .on('data', (row) => {
+          // if row is empty - skip
+          res.push(row);
 
-      const s3ReadableStream = s3Object.createReadStream();
-
-      s3ReadableStream.pipe(csv())
-        .on('data', async (chunk) => {
-
-          const chunkStringified = JSON.stringify(chunk);
-
-          console.log(`Recieved part of data ${chunkStringified}`);
-
-          const message = {
-            QueueUrl: process.env.SQS_URL,
-            MessageBody: chunkStringified
+          const sqsParams: SendMessageRequest = {
+            QueueUrl: SQS_URL,
+            MessageBody: JSON.stringify(row)
           };
 
-          await sqs.sendMessage(message).promise();
+          console.log(`sqs parameters are CONFIGURED ${sqsParams}`);
+
+          sqs.sendMessage(sqsParams, (err, result) => {
+            if (err) {
+              console.log(err);
+
+              reject(err)
+            }
+
+            console.log(`Message has been sent to queue SUCCESSFULLY with data: ${result}`);
+          });
         })
-        .on('error', (e) => {
-          throw new Error(`Error occured: ${e}`);
+        .on('error', (error) => {
+          console.log(`Error occured while parsing ${paramsGetObject.Key}: ${error}`);
+          reject(error);
         })
         .on('end', async () => {
-          const sourceName = `${BUCKET_NAME}/${fileName}`;
-          const destName = fileName.replace(UPLOAD_PREFIX, PARSE_PREFIX);
+          // copy object
+          await s3.copyObject(paramsCopyObject).promise();
+          console.log(`File ${fileName} was SUCCESSFULLY copied from '${UPLOAD_PREFIX}' to '${PARSE_PREFIX}' folder`);
 
-          const copyParams = {
-            Bucket: BUCKET_NAME,
-            CopySource: sourceName,
-            Key: destName
-          };
+          // delete object from uploaded/ folder
+          await s3.deleteObject(paramsDeleteObject).promise();
+          console.log(`File ${fileName} was SUCCESSFULLY removed from '${UPLOAD_PREFIX}' folder`);
 
-          await s3Bucket.copyObject(copyParams).promise();
-          await s3Bucket.deleteObject(params).promise();
-        });
+          // resolves logs
+          resolve()
+        })
     });
+  });
 
-    return formatJSONResponse({ message: 'Successfully parsed' });
-  } catch (e) {
-    const message = `Something went wrong on server side: ${e}`;
-    return formatJSONResponse({ message });
+  try {
+    await Promise.all(promises);
+  } catch (error) {
+    return { code: 500, message: error };
   }
 };
 
-export const main = middyfy(fileParser);
+export const main = fileParser;

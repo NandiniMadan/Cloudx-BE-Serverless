@@ -76,7 +76,7 @@ const serverlessConfiguration: AWS = {
       createProductSubscription: {
         Type: 'AWS::SNS::Subscription',
         Properties: {
-          Endpoint: 'vladyslav_palyvoda@epam.com',
+          Endpoint: 'nandini_manchi@epam.com',
           Protocol: 'email',
           TopicArn: {
             Ref: 'createProductTopic',
