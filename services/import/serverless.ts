@@ -1,4 +1,5 @@
 import type { AWS } from '@serverless/typescript';
+import { API_GATEWAY_RESPONSE_PARAMS } from './src/utils/constants';
 
 import productsFile from '@functions/productsFile';
 import fileParser from '@functions/fileParser';
@@ -85,6 +86,26 @@ const serverlessConfiguration: AWS = {
         Properties: {
           QueueName: 'catalog-items-sqs-queue'
         }
+      },
+      GatewayResponseUnauthorized: {
+        Type: 'AWS::ApiGateway::GatewayResponse',
+        Properties: {
+          ResponseParameters: API_GATEWAY_RESPONSE_PARAMS,
+          RestApiId: {
+            Ref: 'ApiGatewayRestApi',
+          },
+          ResponseType: 'UNAUTHORIZED'
+        },
+      },
+      GatewayResponseAccessDenied: {
+        Type: 'AWS::ApiGateway::GatewayResponse',
+        Properties: {
+          ResponseParameters: API_GATEWAY_RESPONSE_PARAMS,
+          RestApiId: {
+            Ref: 'ApiGatewayRestApi',
+          },
+          ResponseType: 'ACCESS_DENIED'
+        },
       }
     },
     Outputs: {

@@ -15,3 +15,8 @@ export const BUCKET_NAME = 'magnum-imports';
 export const REGION = 'us-east-1';
 export const UPLOAD_PREFIX = 'uploaded';
 export const PARSE_PREFIX = 'parsed';
+
+export const API_GATEWAY_RESPONSE_PARAMS = {
+    'gatewayresponse.header.Access-Control-Allow-Origin': "'*'",
+    'gatewayresponse.header.Access-Control-Allow-Headers': "'*'",
+};

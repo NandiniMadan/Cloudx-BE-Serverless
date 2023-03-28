@@ -6,7 +6,7 @@ import { BUCKET_NAME, REGION, UPLOAD_PREFIX } from '../../utils/constants';
 
 import schema from './schema';
 
-const s3 = new S3({ region: REGION });
+const s3 = new S3({ region: REGION, signatureVersion: 'v4' });
 
 export const productsFile: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async (event) => {
   const params = {
