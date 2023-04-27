@@ -1,4 +1,3 @@
-// import schema from './schema';
 import { handlerPath } from '@libs/handler-resolver';
 
 export default {
@@ -8,7 +7,14 @@ export default {
       http: {
         method: 'get',
         path: 'products',
-        request: {},
+        responseData: {
+          200: {
+            description: 'Successful operation',
+            bodyType: 'Products',
+          },
+          404: 'Products not found',
+          500: 'Server error',
+        },
       },
     },
   ],
