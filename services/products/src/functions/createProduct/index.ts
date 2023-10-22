@@ -5,8 +5,8 @@ export default {
   events: [
     {
       http: {
-        method: 'get',
-        path: 'products',
+        method: 'post',
+        path: 'product',
         responseData: {
           200: {
             description: 'Successful operation',
